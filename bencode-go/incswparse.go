@@ -7,14 +7,6 @@ import (
     "strconv"
 )
 
-// A relatively fast unmarshaler.
-// Adapted from https://github.com/IncSW/go-bencode/blob/master/unmarshaler.go
-// License: https://github.com/IncSW/go-bencode/blob/master/LICENSE
-
-// Differences from IncSW are for compatibility with the existing bencode-go API:
-// (a) Uses a bufio.Reader rather than a raw []byte
-// (b) Strings are returned as golang strings rather than as raw []byte arrays.
-
 func decodeFromReader(r *bufio.Reader) (data interface{}, err error) {
     result, err := unmarshal(r)
     if err != nil {
@@ -114,8 +106,6 @@ func unmarshal(data *bufio.Reader) (interface{}, error) {
     }
 }
 
-// Reads bytes out of local buffer if possible, which avoids an extra copy.
-// The result []byte is only guarenteed to be valid until the next call to a Read method.
 func optimisticReadBytes(data *bufio.Reader, delim byte) ([]byte, error) {
     buffered := data.Buffered()
     var buffer []byte

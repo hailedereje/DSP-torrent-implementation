@@ -1,12 +1,3 @@
-// Copyright 2009 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// Marshalling and unmarshalling of
-// bit torrent bencode data into Go structs using reflection.
-//
-// Based upon the standard Go language JSON package.
-
 package bencode
 
 import (

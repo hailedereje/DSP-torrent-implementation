@@ -11,3 +11,4 @@ install:
   - go get -d -v . && go install -v .
 
 script: go test -v .
+ 

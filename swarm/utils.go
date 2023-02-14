@@ -28,10 +28,10 @@ func (meta *DownloadMeta) calculatePieceSize(index int) int {
 func (meta *DownloadMeta) startDownloadWorker(peer peers.Peer, workQueue chan *pieceOfWork, results chan *pieceOfResult) {
 	w, err := worker.New(peer, meta.PeerID, meta.InfoHash)
 	if err != nil {
-		log.Printf("Handshake with peer %s failed\n", peer.IP)
+		log.Printf("peer %s failed to HandShake\n", peer.IP)
 		return
 	}
-	log.Printf("Handshake with peer %s successful\n", peer.IP)
+	log.Printf("peer %s connected with HandShake\n", peer.IP)
 
 	defer w.Conn.Close()
 

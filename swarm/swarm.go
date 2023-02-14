@@ -52,7 +52,7 @@ func (meta *DownloadMeta) Download() ([]byte, error) {
 	// store result in memory -> maybe better to save peices to disk for big files
 	resultBuf := make([]byte, meta.FileSize)
 	donePieces := 0
-	for donePieces < len(meta.PieceHashes) {
+	for donePieces <= len(meta.PieceHashes) {
 		piece := <-results
 		begin, end := meta.calculateBoundsForPiece(piece.index)
 		copy(resultBuf[begin:end], piece.buf)
