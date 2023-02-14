@@ -8,6 +8,8 @@ If you have the project locally, you can use
 
 ```sh
 go run . <path/to/torrent/file> <path/to/store/downloaded/file>
+
+eg. go run test-torrent\deb.iso.torrent download\
 ```
 
 ## TODO
