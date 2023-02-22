@@ -1,34 +1,47 @@
 package peers
 
 import (
-	"encoding/binary"
-	"fmt"
-	"net"
-	"strconv"
+    "crypto/rand"
+    "fmt"
+    "net"
 )
 
-// Peer encodes connection information for a peer
-type Peer struct {
-	IP   net.IP
-	Port uint16
+type PeerID [20]byte
+
+var prefix = []byte("-P00001-")
+
+// Node contains the details of a peer
+type Node struct {
+    IP   net.IP
+    Port uint16
 }
 
-func Deserialize(peersBin []byte) ([]Peer, error) {
-	const peerSize = 6 // 4 for IP, 2 for port
-	numPeers := len(peersBin) / peerSize
-	if len(peersBin)%peerSize != 0 {
-		err := fmt.Errorf("Received malformed peers")
-		return nil, err
-	}
-	peers := make([]Peer, numPeers)
-	for i := 0; i < numPeers; i++ {
-		offset := i * peerSize
-		peers[i].IP = net.IP(peersBin[offset : offset+4])
-		peers[i].Port = binary.BigEndian.Uint16([]byte(peersBin[offset+4 : offset+6]))
-	}
-	return peers, nil
+// Unmarshal returns the seeders as an array of nodes(ip:port)
+func Unmarshal() ([]Node, error) {
+    nodes := make([]Node, 1)
+    node := make([]byte, 4)
+    node[0] = 192
+    node[1] = 168
+    node[2] = 228
+    node[3] = 142
+
+    nodes[0].IP = net.IP(node)
+    nodes[0].Port = 5858
+    return nodes, nil
 }
 
-func (p Peer) URL() string {
-	return net.JoinHostPort(p.IP.String(), strconv.Itoa(int(p.Port)))
+// String returns a string representation of the Node object
+func (n Node) String() string {
+    return net.JoinHostPort(n.IP.String(), fmt.Sprint(n.Port))
+}
+
+// GenerateNodeID generates a new node ID
+func GenerateNodeID() (PeerID, error) {
+    var id PeerID
+    copy(id[:], prefix)
+    _, err := rand.Read(id[len(prefix):])
+    if err != nil {
+        return PeerID{}, err
+    }
+    return id, nil
 }

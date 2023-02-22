@@ -1,99 +1,113 @@
 package torrent
 
 import (
-	"crypto/rand"
+	"bytes"
+	"crypto/sha1"
+	"fmt"
 	"log"
+	"math"
 	"os"
 
-	"torrent/bencodeUtils"
-	"torrent/swarm"
+	"github.com/jackpal/bencode-go"
+	"example.com/torrent/bitfield"
+	"example.com/torrent/peer"
+	"example.com/torrent/peer2peer"
 )
 
-// TorrentFile holds the metadata from a .torrent file, parsed from bencode
-type TorrentFile struct {
-	TrackerBaseURL string
-	InfoHash       [20]byte   // trakcer uses to identify file
-	PieceHashes    [][20]byte // integrity check of pieces
-	PieceLength    int        // size of each piece
-	Length         int        // size of file
-	Name           string
+const DefaultPort uint16 = 6881
+
+// TorrentMetaInfo encodes the metadata from a .torrent file
+type TorrentMetaInfo struct {
+	Announce    string
+	InfoHash    [20]byte
+	PieceHashes [][20]byte
+	PieceLength int
+	Length      int
+	Name        string
 }
 
-func Deserialize(path string) (TorrentFile, error) {
+type bencodeTorrent struct {
+	Announce string      `bencode:"announce"`
+	Info     bencodeInfo `bencode:"info"`
+}
+
+type bencodeInfo struct {
+	Name        string `bencode:"name"`
+	Length      int    `bencode:"length"`
+	Pieces      string `bencode:"pieces"`
+	PieceLength int    `bencode:"piece length"`
+}
+
+func OpenTorrentFile(path string) (TorrentMetaInfo, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalln("Opening torrent file failed")
-		return TorrentFile{}, err
+		return TorrentMetaInfo{}, err
 	}
 	defer file.Close()
 
-	torrentMeta, err := bencodeUtils.ParseTorrent(file)
+	bct := bencodeTorrent{}
+	err = bencode.Unmarshal(file, &bct)
 	if err != nil {
-		log.Fatalln("Parsing torrent file content failed")
-		return TorrentFile{}, err
+		return TorrentMetaInfo{}, err
 	}
 
-	// send the hash of Info to tracker to identify the file we want to download
-	infoHash, err := torrentMeta.Info.Hash()
-	if err != nil {
-		log.Fatalln("Extracting torrent hash failed")
-		return TorrentFile{}, err
-	}
-
-	// get hashes of each piece of the file for integrity check
-	pieceHashes, err := torrentMeta.Info.SplitPieceHashes()
-	if err != nil {
-		log.Fatalln("Extracting hashes of pieces failed")
-		return TorrentFile{}, err
-	}
-
-	// store in flatter struct for ease of use
-	t := TorrentFile{
-		TrackerBaseURL: torrentMeta.Announce,
-		InfoHash:       infoHash,
-		PieceHashes:    pieceHashes,
-		PieceLength:    torrentMeta.Info.PieceLength,
-		Length:         torrentMeta.Info.Length,
-		Name:           torrentMeta.Info.Name,
-	}
-	return t, nil
+	return bct.toTorrentMetaInfo()
 }
 
-func (t *TorrentFile) DownloadToFile(path string) error {
-	var peerID [20]byte
-	_, err := rand.Read(peerID[:]) // use a random ID to identify ourselves to tracker
+func (bct *bencodeTorrent) toTorrentMetaInfo() (TorrentMetaInfo, error) {
+	infoHash, pieceHashes, err := bct.Info.hashInfo()
+	if err != nil {
+		return TorrentMetaInfo{}, err
+	}
+	return TorrentMetaInfo{
+		Announce:    bct.Announce,
+		InfoHash:    infoHash,
+		PieceHashes: pieceHashes,
+		PieceLength: bct.Info.PieceLength,
+		Length:      bct.Info.Length,
+		Name:        bct.Info.Name,
+	}, nil
+}
+
+func (bci *bencodeInfo) hashInfo() ([20]byte, [][20]byte, error) {
+	pieces := []byte(bci.Pieces)
+	hashLen := 20
+	numHashes := len(pieces) / hashLen
+	pieceHashes := make([][20]byte, numHashes)
+
+	if len(pieces)%hashLen != 0 {
+		err := fmt.Errorf("reading hash info failed: invalid hash length (length: %d - expected: %d", len(pieces), hashLen)
+		return [20]byte{}, [][20]byte{}, err
+	}
+	for i := range pieceHashes {
+		copy(pieceHashes[i][:], pieces[i*hashLen:(i+1)*hashLen])
+	}
+
+	var info bytes.Buffer
+	err := bencode.Marshal(&info, *bci)
+	if err != nil {
+		return [20]byte{}, [][20]byte{}, err
+	}
+	infoHash := sha1.Sum(info.Bytes())
+	return infoHash, pieceHashes, nil
+}
+
+func (tmi *TorrentMetaInfo) Download(path string) error {
+	peerID, err := peer.GeneratePeerID()
 	if err != nil {
 		return err
 	}
 
-	peers, err := t.requestForPeers(peerID, Port)
-	if err != nil {
-		return err
-	}
-	log.Printf("Got %d peers\n", len(peers))
+	seed, _ := peer.UnmarshalPeers()
 
-	torrent := swarm.DownloadMeta{
-		Peers:       peers,
-		PeerID:      peerID,
-		InfoHash:    t.InfoHash,
-		PieceHashes: t.PieceHashes,
-		PieceSize:   t.PieceLength,
-		FileSize:    t.Length,
-		Name:        t.Name,
-	}
-	buf, err := torrent.Download()
-	if err != nil {
-		return err
-	}
+	log.Println(seed)
 
-	outFile, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-	_, err = outFile.Write(buf)
-	if err != nil {
-		return err
-	}
-	return nil
+	pieceLength := len(tmi.PieceHashes)
+	byteSize := 8
+	bitfield := make(bitfield.Bitfield, int(math.Ceil(float64(pieceLength)/float64(byteSize))))
+
+	outFile, _ := os.OpenFile(tmi.Name, os.O_RDWR|os.O_CREATE, 0666)
+
+	torrent
+
 }
